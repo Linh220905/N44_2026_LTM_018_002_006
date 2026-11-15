@@ -29,4 +29,18 @@ Sau khi QGroundControl nhận PX4, từ thư mục dự án chạy:
 ~/px4-venv/bin/python -I scripts/sitl_flight.py --execute-sitl # chỉ chạy SITL, tự gửi LAND
 ```
 
-**Giới hạn hiện tại:** Demo PX4 chưa nối GCS/agent; chưa triển khai baseline unicast, đồng bộ Cristian, benchmark và phép so sánh hiệu năng. Không dùng ảnh bay đơn lẻ làm bằng chứng cải thiện thuật toán. Chỉ số rớt sequence MAVLink phía nhận không tự chứng minh mất gói mạng.
+## Đánh giá Hệ tham chiếu Baseline vs Kiến trúc đề xuất
+
+Hệ thống cung cấp cả hai mô hình kiến trúc để đối chứng trực tiếp:
+- **Kiến trúc đề xuất (Pre-load + Multicast Trigger):** `bin/gcs_server` và `bin/drone_agent`.
+- **Hệ tham chiếu Baseline (Unicast Real-time Streaming):** `bin/baseline_server` và `bin/baseline_agent`.
+
+Chạy toàn bộ bộ đánh giá thực nghiệm (Scale $N=2..100$, mất gói $p_{loss}=0\%..20\%$, biểu đồ so sánh):
+
+```bash
+/home/linh/miniconda3/bin/python scripts/evaluate_baseline.py
+# Biên dịch lại báo cáo Word:
+/home/linh/miniconda3/bin/python tools/build_report.py
+```
+
+**Giới hạn hiện tại:** Demo PX4 chưa nối trực tiếp MAVLink bridge đàn đa drone (chạy demo độc lập 1 drone SITL); chưa dùng Linux tc netem trên giao diện vật lý ngoài localhost.

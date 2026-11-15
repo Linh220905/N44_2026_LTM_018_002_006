@@ -14,6 +14,7 @@
 #define MSG_SWARM_HEARTBEAT 6
 #define MSG_SHOW_ARM_TRIGGER 7
 #define MSG_EMERGENCY_STOP 8
+#define MSG_SETPOINT 9
 
 struct packet {
     uint8_t type;
