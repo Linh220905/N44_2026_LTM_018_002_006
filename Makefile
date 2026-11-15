@@ -22,8 +22,12 @@ bin/baseline_agent: agent/baseline_agent.c common/protocol.c common/protocol.h |
 bin/test_protocol: tests/test_protocol.c common/protocol.c common/protocol.h | bin
 	$(CC) $(CFLAGS) --coverage tests/test_protocol.c common/protocol.c -o $@
 
-test: all bin/test_protocol
+bin/test_failsafe: tests/test_failsafe.c agent/failsafe.c agent/failsafe.h common/geofence.c common/geofence.h | bin
+	$(CC) $(CFLAGS) tests/test_failsafe.c agent/failsafe.c common/geofence.c -o $@
+
+test: all bin/test_protocol bin/test_failsafe
 	./bin/test_protocol
+	./bin/test_failsafe
 	python3 -I tests/test_swarm.py
 	python3 -I tests/test_baseline.py
 	$(PX4_PYTHON) -I tests/test_sitl_flight.py
