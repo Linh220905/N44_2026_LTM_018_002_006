@@ -29,6 +29,17 @@ Sau khi QGroundControl nhận PX4, từ thư mục dự án chạy:
 ~/px4-venv/bin/python -I scripts/sitl_flight.py --execute-sitl # chỉ chạy SITL, tự gửi LAND
 ```
 
+## Module An toàn Failsafe & 3D Geofence (Agent 2)
+
+Hệ thống giám sát an toàn cấp thiết bị bay (drone-level failsafe):
+- **3D Geofence (`common/geofence.h`, `common/geofence.c`)**: Kiểm tra không gian bay 3D an toàn theo hệ tọa độ NED (North-East-Down: $z < 0$ là độ cao).
+- **Failsafe Monitor (`agent/failsafe.h`, `agent/failsafe.c`)**:
+  - Tự động phát hiện mất nhịp Heartbeat GCS quá 1.5s $\rightarrow$ chuyển chế độ `AUTO_HOVER` (`MAV_CMD_DO_SET_MODE`).
+  - Vi phạm hàng rào Geofence hoặc điện áp pin $< 10\%$ $\rightarrow$ tự động kích hoạt hạ cánh khẩn cấp `MAV_CMD_NAV_LAND`.
+  - Hỗ trợ lệnh ngắt khẩn cấp thủ công từ GCS (`FAILSAFE_EMERGENCY_TRIGGER`).
+- **Unit Test (`tests/test_failsafe.c`)**:
+  - Chạy kiểm thử: `make bin/test_failsafe && ./bin/test_failsafe`
+
 ## Đánh giá Hệ tham chiếu Baseline vs Kiến trúc đề xuất
 
 Hệ thống cung cấp cả hai mô hình kiến trúc để đối chứng trực tiếp:
