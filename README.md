@@ -40,6 +40,22 @@ Hệ thống giám sát an toàn cấp thiết bị bay (drone-level failsafe):
 - **Unit Test (`tests/test_failsafe.c`)**:
   - Chạy kiểm thử: `make bin/test_failsafe && ./bin/test_failsafe`
 
+## Module Nội suy Quỹ đạo & Sinh kịch bản hình khối (Trajectory & Spline Engine)
+
+- **Cubic Hermite Spline 3D (`common/spline.h`, `common/spline.c`)**:
+  - `waypoint_knot_t` lưu thời điểm, vị trí (NED) và vận tốc của mỗi điểm mốc.
+  - `spline_interpolate()` nội suy vị trí giữa hai mốc; `spline_velocity()` trả về vận tốc của cùng đường cong.
+  - Đường cong khớp cả vị trí lẫn vận tốc tại hai đầu mốc, nên các đoạn ghép liên tiếp liên tục $C^1$ (không giật tại điểm nút). Ngoài khoảng $[t_0, t_1]$ drone giữ vị trí mốc gần nhất.
+- **Sinh kịch bản (`tools/pattern_generator.py`)**: cất cánh từ lưới mặt đất $\rightarrow$ **Ngôi sao 5 cánh** (dải cầu vồng chạy quanh sao) $\rightarrow$ **Vòng xoắn ốc** xoay quanh trục đứng (màu đổi theo chiều cao và thời gian) $\rightarrow$ hạ cánh, tắt LED. Hỗ trợ $N = 5..100$ drone.
+  - Gán drone vào vị trí đích bằng thuật toán Hungarian + bay thẳng đồng bộ để không va chạm; script tự kiểm tra lại geofence $\pm 50$ m, tốc độ $\le 3$ m/s và khoảng cách tối thiểu trước khi ghi tệp.
+  - Đầu ra: mỗi drone một khung `MSG_SHOW_WAYPOINT_DATA` (type 10 trong `common/protocol.h`). Payload: `u16 drone_id`, `u16 knot_count`, rồi các mốc 31 byte `u32 t_ms, f32 x y z, f32 vx vy vz, u8 r g b` (big-endian).
+
+```bash
+python3 -I tools/pattern_generator.py --drones 20 --output show_waypoints.bin --json show_waypoints.json
+```
+
+- **Unit Test**: `make bin/test_spline && ./bin/test_spline` (khớp mốc, sai số nội suy $O(h^4)$, liên tục $C^1$, biên/NULL) và `python3 -I tests/test_pattern_generator.py` (định dạng khung, an toàn đội hình, hình sao/xoắn ốc, LED).
+
 ## Đánh giá Hệ tham chiếu Baseline vs Kiến trúc đề xuất
 
 Hệ thống cung cấp cả hai mô hình kiến trúc để đối chứng trực tiếp:

@@ -26,7 +26,7 @@ static uint16_t crc(const uint8_t *data, size_t size) {
 int encode(uint8_t *out, size_t capacity, uint8_t type, uint32_t seq,
            const uint8_t *payload, uint32_t len, size_t *size) {
     if (!out || !size || (len && !payload) || len > PAYLOAD_MAX ||
-        capacity < HEADER_SIZE + (size_t)len || type < MSG_HELLO_REQ || type > MSG_SETPOINT)
+        capacity < HEADER_SIZE + (size_t)len || type < MSG_HELLO_REQ || type > MSG_SHOW_WAYPOINT_DATA)
         return -1;
     put16(out, 0x5058);
     out[2] = 1;
@@ -44,7 +44,7 @@ int encode(uint8_t *out, size_t capacity, uint8_t type, uint32_t seq,
 int decode(const uint8_t *frame, size_t size, struct packet *out) {
     if (!frame || !out || size < HEADER_SIZE || size > FRAME_MAX ||
         get16(frame) != 0x5058 || frame[2] != 1 ||
-        frame[3] < MSG_HELLO_REQ || frame[3] > MSG_SETPOINT ||
+        frame[3] < MSG_HELLO_REQ || frame[3] > MSG_SHOW_WAYPOINT_DATA ||
         get16(frame + 14) != 0 || get32(frame + 8) > PAYLOAD_MAX ||
         size != HEADER_SIZE + (size_t)get32(frame + 8) ||
         get16(frame + 12) != crc(frame, size)) return -1;

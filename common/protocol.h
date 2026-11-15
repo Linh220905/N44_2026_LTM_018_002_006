@@ -15,6 +15,7 @@
 #define MSG_SHOW_ARM_TRIGGER 7
 #define MSG_EMERGENCY_STOP 8
 #define MSG_SETPOINT 9
+#define MSG_SHOW_WAYPOINT_DATA 10 /* u16 id, u16 count, count x 31-byte knot (tools/pattern_generator.py) */
 
 struct packet {
     uint8_t type;
