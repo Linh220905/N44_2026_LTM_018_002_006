@@ -1,0 +1,2 @@
+# Optional PX4 SITL demo and MAVLink tests
+pymavlink==2.4.50

@@ -1,12 +1,15 @@
 #define _POSIX_C_SOURCE 200809L
 #include "../common/protocol.h"
+#include "../common/cli.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
@@ -18,7 +21,34 @@ struct client { int fd, id; size_t received, sent, to_send; uint8_t input[18], o
 static struct client clients[MAX_CLIENTS];
 static uint8_t records[100][RECORD_SIZE];
 static int claimed[100], count, ready_count;
+static volatile sig_atomic_t stopping;
 
+static void on_stop(int signal_number) { (void)signal_number; stopping = 1; }
+static uint64_t realtime_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+/* Cristian time server: T2 stamped right after recv, T3 right before send. */
+static void answer_time_sync(int fd) {
+    uint8_t request[HEADER_SIZE + 8], reply[HEADER_SIZE + 24], payload[24];
+    struct sockaddr_in from;
+    socklen_t from_len = sizeof from;
+    for (;;) {
+        from_len = sizeof from;
+        ssize_t n = recvfrom(fd, request, sizeof request, MSG_TRUNC, (struct sockaddr *)&from, &from_len);
+        uint64_t t2 = realtime_us();
+        if (n < 0) return;
+        struct packet packet;
+        size_t length;
+        if ((size_t)n > sizeof request || decode(request, (size_t)n, &packet) || packet.type != MSG_TIME_SYNC_REQ || packet.len != 8) continue;
+        memcpy(payload, packet.payload, 8);
+        put64(payload + 8, t2);
+        put64(payload + 16, realtime_us());
+        if (!encode(reply, sizeof reply, MSG_TIME_SYNC_RESP, packet.seq, payload, sizeof payload, &length))
+            sendto(fd, reply, length, 0, (struct sockaddr *)&from, from_len);
+    }
+}
 static int64_t now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -57,7 +87,7 @@ static void handle_client(int ep, struct client *c, uint32_t events) {
     if (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) { close_client(ep, c); return; }
     if (events & EPOLLIN) {
         ssize_t n = recv(c->fd, c->input + c->received, sizeof c->input - c->received, 0);
-        if (n <= 0) { if (n == 0 || errno != EAGAIN) close_client(ep, c); return; }
+        if (n <= 0) { if (n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) close_client(ep, c); return; }
         c->received += (size_t)n;
         if (c->received != sizeof c->input) return;
         struct packet request;
@@ -84,7 +114,7 @@ static void handle_client(int ep, struct client *c, uint32_t events) {
     }
     if (c->fd >= 0 && (events & EPOLLOUT)) {
         ssize_t n = send(c->fd, c->output + c->sent, c->to_send - c->sent, MSG_NOSIGNAL);
-        if (n < 0) { if (errno != EAGAIN) close_client(ep, c); return; }
+        if (n < 0) { if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) close_client(ep, c); return; }
         c->sent += (size_t)n;
         if (c->sent == c->to_send) {
             c->ready = 1;
@@ -100,9 +130,7 @@ static int multicast_socket(const char *spec, struct sockaddr_in *peer) {
     if (!separator || separator - spec < 1 || (size_t)(separator - spec) >= sizeof address) return -1;
     memcpy(address, spec, (size_t)(separator - spec));
     address[separator - spec] = 0;
-    char *end;
-    long port = strtol(separator + 1, &end, 10);
-    if (*end || port < 1 || port > 65535) return -1;
+    long port = cli_long(separator + 1, 1, 65535);
     *peer = (struct sockaddr_in){.sin_family = AF_INET, .sin_port = htons((uint16_t)port)};
     if (inet_pton(AF_INET, address, &peer->sin_addr) != 1 ||
         (ntohl(peer->sin_addr.s_addr) & 0xf0000000u) != 0xe0000000u) return -1;
@@ -114,16 +142,15 @@ static int multicast_socket(const char *spec, struct sockaddr_in *peer) {
 }
 int main(int argc, char **argv) {
     const char *show = NULL, *group = "239.255.0.1:9090";
-    long port = 8080;
+    long port = 8080, sync_port = 9091, lead_ms = 1000;
     for (int i = 1; i < argc; i += 2) {
         if (i + 1 == argc) return 2;
         if (!strcmp(argv[i], "--show")) show = argv[i + 1];
         else if (!strcmp(argv[i], "--multicast")) group = argv[i + 1];
-        else if (!strcmp(argv[i], "--port")) {
-            char *end;
-            port = strtol(argv[i + 1], &end, 10);
-            if (*end || port < 1 || port > 65535) return 2;
-        } else return 2;
+        else if (!strcmp(argv[i], "--port")) port = cli_long(argv[i + 1], 1, 65535);
+        else if (!strcmp(argv[i], "--sync-port")) sync_port = cli_long(argv[i + 1], 1, 65535);
+        else if (!strcmp(argv[i], "--lead-ms")) lead_ms = cli_long(argv[i + 1], 1, 65535);
+        else return 2;
     }
     if (!show || load_show(show)) return 2;
     struct sockaddr_in peer;
@@ -138,20 +165,34 @@ int main(int argc, char **argv) {
         perror("listener"); return 1;
     }
     for (int i = 0; i < MAX_CLIENTS; ++i) { clients[i].fd = -1; clients[i].id = -1; }
+    int sync = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr_in sync_local = {.sin_family = AF_INET, .sin_port = htons((uint16_t)sync_port),
+                                     .sin_addr.s_addr = htonl(INADDR_LOOPBACK)};
+    if (sync < 0 || bind(sync, (struct sockaddr *)&sync_local, sizeof sync_local) || nonblock(sync)) {
+        perror("time sync socket"); return 1;
+    }
+    struct sigaction action = {.sa_handler = on_stop};
+    sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGINT, &action, NULL);
     int ep = epoll_create1(0);
+    static int sync_tag;
     struct epoll_event event = {.events = EPOLLIN, .data.ptr = NULL};
-    if (ep < 0 || epoll_ctl(ep, EPOLL_CTL_ADD, listener, &event)) { perror("epoll"); return 1; }
-    int64_t next = now_ms(), started = -1;
+    struct epoll_event sync_event = {.events = EPOLLIN, .data.ptr = &sync_tag};
+    if (ep < 0 || epoll_ctl(ep, EPOLL_CTL_ADD, listener, &event) ||
+        epoll_ctl(ep, EPOLL_CTL_ADD, sync, &sync_event)) { perror("epoll"); return 1; }
+    int64_t next = now_ms(), began = now_ms();
+    uint64_t target_us = 0, multicast_bytes = 0, multicast_frames = 0;
     uint32_t sequence = 0;
-    for (;;) {
+    while (!stopping) {
         struct epoll_event events[32];
         int n = epoll_wait(ep, events, 32, 50);
         if (n < 0) { if (errno == EINTR) continue; perror("epoll_wait"); return 1; }
         for (int i = 0; i < n; ++i) {
+            if (events[i].data.ptr == &sync_tag) { answer_time_sync(sync); continue; }
             if (events[i].data.ptr) { handle_client(ep, events[i].data.ptr, events[i].events); continue; }
             for (;;) {
                 int fd = accept(listener, NULL, NULL);
-                if (fd < 0) { if (errno != EAGAIN) perror("accept"); break; }
+                if (fd < 0) { if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) perror("accept"); break; }
                 int slot = 0;
                 while (slot < MAX_CLIENTS && clients[slot].fd >= 0) ++slot;
                 if (slot == MAX_CLIENTS || nonblock(fd)) { close(fd); continue; }
@@ -161,19 +202,29 @@ int main(int argc, char **argv) {
             }
         }
         int64_t now = now_ms();
-        if (ready_count == count && started < 0) started = now + 500;
-        if (ready_count < count && started > now) started = -1;
+        /* T_target is fixed once every agent holds its trajectory; repeated until 1 s past it
+         * so a lossy channel still delivers at least one copy (agents drop duplicates by seq). */
+        if (ready_count == count && !target_us) target_us = realtime_us() + (uint64_t)lead_ms * 1000u;
         if (now >= next) {
-            uint8_t frame[HEADER_SIZE + 8];
+            uint8_t frame[HEADER_SIZE + 8], target[8];
             size_t length;
-            int trigger = started >= 0 && now >= started;
-            uint8_t target[8];
-            uint64_t timestamp = (uint64_t)time(NULL) * 1000;
-            for (int j = 7; j >= 0; --j) { target[j] = (uint8_t)timestamp; timestamp >>= 8; }
+            int trigger = target_us && realtime_us() < target_us + 1000000u;
+            put64(target, target_us);
             if (!encode(frame, sizeof frame, trigger ? MSG_SHOW_ARM_TRIGGER : MSG_SWARM_HEARTBEAT,
-                        ++sequence, trigger ? target : NULL, trigger ? 8 : 0, &length) &&
-                sendto(udp, frame, length, 0, (struct sockaddr *)&peer, sizeof peer) < 0) perror("multicast");
+                        ++sequence, trigger ? target : NULL, trigger ? 8 : 0, &length)) {
+                if (sendto(udp, frame, length, 0, (struct sockaddr *)&peer, sizeof peer) < 0) perror("multicast");
+                else { multicast_bytes += length; ++multicast_frames; }
+            }
             next = now + 250;
         }
     }
+    double seconds = (double)(now_ms() - began) / 1000.0;
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    double cpu = (double)usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 +
+                 (double)usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+    printf("GCS_SUMMARY: N=%d multicast_frames=%llu multicast_bytes=%llu elapsed_s=%.3f bandwidth_Bps=%.2f cpu_s=%.4f\n",
+           count, (unsigned long long)multicast_frames, (unsigned long long)multicast_bytes, seconds,
+           seconds > 0 ? (double)multicast_bytes / seconds : 0.0, cpu);
+    return 0;
 }

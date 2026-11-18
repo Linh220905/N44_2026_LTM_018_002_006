@@ -1,0 +1,11 @@
+$ ./bin/gcs_server --show show4.bin --port 18081 --sync-port 19092 --multicast 239.255.0.1:19093 &
+$ for i in 0 1 2 3; do ./bin/drone_agent --id $i ... --samples 8 --clock-offset-ms <lệch> --jitter-ms 1 & done
+drone=0 SYNCED theta_us=45023 rtt_min_us=1030 epsilon_us=515 true_offset_us=45000
+drone=0 SHOW started true_us=1794816942404928 target_us=1794816942404861 (simulation only)
+drone=1 SYNCED theta_us=8024 rtt_min_us=1014 epsilon_us=507 true_offset_us=8000
+drone=1 SHOW started true_us=1794816942404926 target_us=1794816942404861 (simulation only)
+drone=2 SYNCED theta_us=-29408 rtt_min_us=1223 epsilon_us=611 true_offset_us=-29000
+drone=2 SHOW started true_us=1794816942405362 target_us=1794816942404861 (simulation only)
+drone=3 SYNCED theta_us=24033 rtt_min_us=864 epsilon_us=432 true_offset_us=24000
+drone=3 SHOW started true_us=1794816942404906 target_us=1794816942404861 (simulation only)
+GCS_SUMMARY: N=4 multicast_frames=5 multicast_bytes=112 elapsed_s=1.106 bandwidth_Bps=101.27 cpu_s=0.0036

@@ -1,4 +1,34 @@
-bin/
+# Compiled binaries and coverage
+/bin/
+*.o
+*.a
+*.so
 *.gcda
 *.gcno
-*.o
+*.gcov
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and editor files
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+.DS_Store
+*~
+.~lock.*#
+~$*
+
+# Generated runs (committed report measurements remain in evidence/)
+/show.bin
+*.ulg
+*.log
+/evidence/results_quick.json

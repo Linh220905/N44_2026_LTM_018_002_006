@@ -1,6 +1,7 @@
 #include "failsafe.h"
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 void failsafe_init(failsafe_monitor_t *mon, const geofence_box_t *box) {
     if (!mon) return;
@@ -121,7 +122,7 @@ failsafe_reason_t failsafe_check(failsafe_monitor_t *mon, uint64_t now_us, doubl
         detected = FAILSAFE_HEARTBEAT_TIMEOUT;
     }
     // 3. Kiểm tra điện áp/dung lượng pin (< 10%)
-    else if ((mon->battery_remaining <= 1.0f && mon->battery_remaining < BATTERY_LOW_THRESHOLD_RATIO) ||
+    else if (!isfinite(mon->battery_remaining) || (mon->battery_remaining <= 1.0f && mon->battery_remaining < BATTERY_LOW_THRESHOLD_RATIO) ||
              (mon->battery_remaining > 1.0f && mon->battery_remaining < BATTERY_LOW_THRESHOLD_PCT)) {
         detected = FAILSAFE_BATTERY_LOW;
     }

@@ -1,0 +1,50 @@
+{
+ "heartbeat": {
+  "hex": "50 58 01 06 00 00 00 01 00 00 00 00 99 c7 00 00",
+  "size": 16,
+  "magic": "0x5058",
+  "version": 1,
+  "type": "0x06 SWARM_HEARTBEAT",
+  "seq": 1,
+  "payload_len": 0,
+  "checksum": "0x99C7",
+  "crc_ok": true,
+  "reserved": 0
+ },
+ "time_sync_req": {
+  "hex": "50 58 01 04 00 00 00 01 00 00 00 08 9c f9 00 00 00 06 60 60 3d 70 26 63",
+  "size": 24,
+  "magic": "0x5058",
+  "version": 1,
+  "type": "0x04 TIME_SYNC_REQ",
+  "seq": 1,
+  "payload_len": 8,
+  "checksum": "0x9CF9",
+  "crc_ok": true,
+  "reserved": 0
+ },
+ "time_sync_resp": {
+  "hex": "50 58 01 05 00 00 00 01 00 00 00 18 94 ea 00 00 00 06 60 60 3d 70 26 63 00 06 60 60 3d 70 27 6b 00 06 60 60 3d 70 27 6e",
+  "size": 40,
+  "magic": "0x5058",
+  "version": 1,
+  "type": "0x05 TIME_SYNC_RESP",
+  "seq": 1,
+  "payload_len": 24,
+  "checksum": "0x94EA",
+  "crc_ok": true,
+  "reserved": 0
+ },
+ "trigger": {
+  "hex": "50 58 01 07 00 00 00 02 00 00 00 08 88 50 00 00 00 06 60 60 3d 7f 70 7e",
+  "size": 24,
+  "magic": "0x5058",
+  "version": 1,
+  "type": "0x07 SHOW_ARM_TRIGGER",
+  "seq": 2,
+  "payload_len": 8,
+  "checksum": "0x8850",
+  "crc_ok": true,
+  "reserved": 0
+ }
+}

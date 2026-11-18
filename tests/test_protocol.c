@@ -1,4 +1,4 @@
-#include "../common/protocol.h"
+#include "../src/common/protocol.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -25,6 +25,16 @@ int main(void) {
     frame[2] = 2;
     assert(decode(frame, size, &packet) != 0);
     assert(encode(frame, HEADER_SIZE, MSG_HELLO_REQ, 1, payload, 2, &size) != 0);
+    assert(encode(frame, sizeof frame, MSG_SETPOINT, 42, payload, 2, &size) == 0);
+    assert(decode(frame, size, &packet) == 0 && packet.type == MSG_SETPOINT);
+    uint8_t wide[8];
+    put64(wide, 0x0102030405060708ULL);
+    assert(wide[0] == 1 && wide[7] == 8 && get64(wide) == 0x0102030405060708ULL);
+    assert(encode(frame, sizeof frame, MSG_SHOW_WAYPOINT_DATA, 7, payload, 2, &size) == 0);
+    assert(decode(frame, size, &packet) == 0 && packet.type == MSG_SHOW_WAYPOINT_DATA);
+    assert(encode(frame, sizeof frame, MSG_SHOW_WAYPOINT_DATA + 1, 7, payload, 2, &size) != 0);
+    frame[3] = MSG_SHOW_WAYPOINT_DATA + 1;
+    assert(decode(frame, size, &packet) != 0);
     puts("protocol tests passed");
     return 0;
 }

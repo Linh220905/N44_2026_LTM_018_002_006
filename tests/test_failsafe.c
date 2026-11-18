@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
-#include "../common/geofence.h"
-#include "../agent/failsafe.h"
+#include <math.h>
+#include "../src/common/geofence.h"
+#include "../src/agent/failsafe.h"
 
 // Biến theo dõi lệnh MAVLink phát ra trong callback
 static int g_action_callback_count = 0;
@@ -161,6 +162,17 @@ int main(void) {
     printf("  DRONE LIGHT SHOW - FAILSAFE & GEOFENCE TEST SUITE\n");
     printf("==================================================\n\n");
 
+    geofence_box_t fence;
+    geofence_box_init(&fence, -50, 50, -50, 50, -50, 0);
+    assert(geofence_is_breached(&fence, NAN, 0, -2));
+    assert(geofence_is_breached(&fence, 0, INFINITY, -2));
+    geofence_box_init(&fence, 5, -5, -50, 50, -50, 0);
+    assert(geofence_is_breached(&fence, 0, 0, -2));
+    failsafe_monitor_t invalid_battery;
+    failsafe_init(&invalid_battery, NULL);
+    geofence_box_init(&invalid_battery.fence, -50, 50, -50, 50, -50, 0);
+    failsafe_update_battery(&invalid_battery, NAN);
+    assert(failsafe_check(&invalid_battery, 1, 0, 0, -2) == FAILSAFE_BATTERY_LOW);
     test_heartbeat_timeout();
     test_geofence_breach();
     test_battery_low();

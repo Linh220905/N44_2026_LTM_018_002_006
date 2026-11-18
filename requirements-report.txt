@@ -1,0 +1,7 @@
+-r requirements.txt
+python-docx>=1.2,<2
+matplotlib>=3.6,<4
+numpy>=1.24,<3
+Pillow>=9,<13
+pyulog>=1.1,<2
+# Also required for Word/PDF export: pandoc, libreoffice-writer, python3-uno.

@@ -1,57 +1,147 @@
-# PX4 SITL Swarm Coordination
+# N44_2026_LTM_018_002_006
 
-Đồ án mô phỏng điều phối đàn drone: GCS C dùng TCP/epoll để nạp điểm quỹ đạo, các agent nhận heartbeat và lệnh khởi động qua UDP multicast. Có demo bay độc lập trên PX4 SITL/jMAVSim bằng MAVLink và xem telemetry trong QGroundControl.
+Đồ án cuối kỳ môn **Lập trình mạng** — mô phỏng điều phối đàn drone trình diễn ánh sáng bằng C11/POSIX sockets, TCP, UDP multicast, `epoll` và đồng bộ đồng hồ Cristian.
 
-## Thử phần mạng
+**GVHD:** TS. Nguyễn Văn Hiếu · **Lớp:** 23KTMT1 · **Khoa:** Điện tử và Trí tuệ nhân tạo, Trường Đại học Bách khoa – Đại học Đà Nẵng.
 
-```bash
-make test
-python3 -I scripts/generate_show.py --drones 100 --shape heart --output show.bin
-./bin/gcs_server --show show.bin
-# Terminal khác: ./bin/drone_agent --id 0
+| Thành viên | MSSV | Đóng góp |
+|---|---|---|
+| Dương Tấn Lĩnh | 106230018 | 33,3 % |
+| Nguyễn Công Bình | 106230002 | 33,3 % |
+| Nguyễn Tấn Dũng | 106230006 | 33,3 % |
+
+## Báo cáo và phụ lục
+
+- [Báo cáo tổng hợp PDF](docs/BAO_CAO_DRONE_LIGHT_SHOW.pdf)
+- [Bản Word](docs/BAO_CAO_DRONE_LIGHT_SHOW.docx)
+- [Giao thức và giới hạn triển khai](docs/IMPLEMENTATION.md)
+- [Số liệu và ảnh minh chứng](evidence/README.md)
+
+## Cấu trúc
+
+```text
+src/common/    Giao thức DLSP, TCP stream, kiểm tra tham số, geofence
+src/server/    GCS đề xuất và baseline server
+src/agent/     Agent đề xuất, baseline agent và failsafe
+scripts/       Sinh kịch bản, đo đạc, vẽ hình, bài bay SITL
+tests/        Kiểm thử C và Python
+docs/         Báo cáo PDF/Word và tài liệu kỹ thuật
+ evidence/     Số liệu gốc, ảnh, biểu đồ và ULog chuyến bay
+ tools/        Sinh báo cáo và xuất PDF
+ data/         Kịch bản nhị phân mẫu
 ```
 
-`make test` dùng Python có `pymavlink` tại `~/px4-venv/bin/python`; có thể đổi biến `PX4_PYTHON` cho môi trường khác.
+## Biên dịch và kiểm thử
 
-## Bay thử PX4 SITL
+Yêu cầu **Linux** (có `epoll`, `timerfd`), GCC, GNU Make và Python **3.10+**. Phần mạng và `make test` chỉ dùng thư viện chuẩn.
 
-Cài và build PX4 v1.14.4 riêng tại `~/PX4-Autopilot`. Chạy trong terminal đồ họa:
+```bash
+make
+make test
+```
+
+Các test chạy socket thật trên localhost, không chạy PX4. Kiểm thử bổ sung MAVLink/PX4 dùng mock và gói UDP tự sinh:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+make test-sitl PX4_PYTHON=.venv/bin/python
+```
+
+## Chạy mô phỏng mạng
+
+Terminal 1:
+
+```bash
+python3 -I scripts/generate_show.py --drones 5 --shape heart --output show.bin
+./bin/gcs_server --show show.bin --lead-ms 1500
+```
+
+Terminal 2:
+
+```bash
+for i in $(seq 0 4); do
+  ./bin/drone_agent --id "$i" --show-ms 3000 &
+done
+wait
+```
+
+Mọi agent phải có ID khác nhau và khớp số drone trong `show.bin`. Đổi **cả số lượng sinh show và vòng lặp** thành 100 để thử quy mô 100 tiến trình. Dừng GCS bằng Ctrl+C sau khi agent hoàn tất. Mặc định GCS dùng TCP `127.0.0.1:8080`, đồng bộ UDP `127.0.0.1:9091`, multicast `239.255.0.1:9090` trên loopback; `--port`, `--sync-port`, `--multicast` của server và agent phải khớp.
+
+Đối chứng baseline (hai terminal riêng):
+
+```bash
+./bin/baseline_server --show show.bin --rate 10 --duration 3
+```
+
+```bash
+for i in $(seq 0 4); do
+  ./bin/baseline_agent --id "$i" --loss 10 &
+done
+wait
+```
+
+`--loss` và `--jitter-ms` mô phỏng suy giảm ở tầng ứng dụng. Baseline vẫn dùng TCP; đây không phải mất gói TCP trên đường truyền hay phép thử `tc netem`.
+
+## Tái lập đánh giá
+
+```bash
+python3 -I scripts/evaluate_baseline.py --quick
+# Toàn bộ TN-1…TN-5 (khoảng 10–15 phút):
+python3 -I scripts/evaluate_baseline.py
+```
+
+Chạy nhanh ghi `evidence/results_quick.json`; chạy đầy đủ ghi đè `evidence/results.json`. Số liệu trong báo cáo được đo ngày **16/11/2026**, trước đợt chỉnh lý mã nguồn; chạy lại trên phiên bản/máy khác sẽ cho số đo thời gian và CPU khác. Xem [evidence/README.md](evidence/README.md) về cách đọc các kết quả.
+
+## Demo PX4 SITL độc lập
+
+Demo chỉ điều khiển **một drone SITL**, chưa nối trực tiếp agent C với PX4. Cần PX4 v1.14.4 ở `~/PX4-Autopilot`, jMAVSim và QGroundControl 4.4.5; các phần mềm này cài riêng.
+
+Trong terminal tương tác:
 
 ```bash
 cd ~/PX4-Autopilot
-PATH="$HOME/px4-venv/bin:$HOME/.local/bin:$PATH" PX4_SIM_SPEED_FACTOR=1 make px4_sitl_default jmavsim
+PX4_SIM_SPEED_FACTOR=1 make px4_sitl_default jmavsim
 ```
 
-Sau khi QGroundControl nhận PX4, từ thư mục dự án chạy:
+Từ thư mục dự án, với Python đã cài `requirements.txt`:
 
 ```bash
-~/px4-venv/bin/python -I scripts/sitl_flight.py             # chỉ xem trước
-~/px4-venv/bin/python -I scripts/sitl_flight.py --execute-sitl # chỉ chạy SITL, tự gửi LAND
+.venv/bin/python -I scripts/sitl_flight.py
+.venv/bin/python -I scripts/sitl_flight.py --execute-sitl
 ```
 
-## Module An toàn Failsafe & 3D Geofence (Agent 2)
+Lệnh đầu chỉ xem trước. Lệnh có `--execute-sitl` xác minh tiến trình PX4 cục bộ và heartbeat, gửi OFFBOARD/ARM, bay 4 điểm mốc rồi gửi LAND. Giữ QGroundControl mở để xác nhận đã hạ cánh/disarm. Không dùng cho thiết bị thật. Không chuyển console PX4 vào file log vì có thể làm đầy ổ đĩa.
 
-Hệ thống giám sát an toàn cấp thiết bị bay (drone-level failsafe):
-- **3D Geofence (`common/geofence.h`, `common/geofence.c`)**: Kiểm tra không gian bay 3D an toàn theo hệ tọa độ NED (North-East-Down: $z < 0$ là độ cao).
-- **Failsafe Monitor (`agent/failsafe.h`, `agent/failsafe.c`)**:
-  - Tự động phát hiện mất nhịp Heartbeat GCS quá 1.5s $\rightarrow$ chuyển chế độ `AUTO_HOVER` (`MAV_CMD_DO_SET_MODE`).
-  - Vi phạm hàng rào Geofence hoặc điện áp pin $< 10\%$ $\rightarrow$ tự động kích hoạt hạ cánh khẩn cấp `MAV_CMD_NAV_LAND`.
-  - Hỗ trợ lệnh ngắt khẩn cấp thủ công từ GCS (`FAILSAFE_EMERGENCY_TRIGGER`).
-- **Unit Test (`tests/test_failsafe.c`)**:
-  - Chạy kiểm thử: `make bin/test_failsafe && ./bin/test_failsafe`
+## Sinh lại báo cáo
 
-## Đánh giá Hệ tham chiếu Baseline vs Kiến trúc đề xuất
-
-Hệ thống cung cấp cả hai mô hình kiến trúc để đối chứng trực tiếp:
-- **Kiến trúc đề xuất (Pre-load + Multicast Trigger):** `bin/gcs_server` và `bin/drone_agent`.
-- **Hệ tham chiếu Baseline (Unicast Real-time Streaming):** `bin/baseline_server` và `bin/baseline_agent`.
-
-Chạy toàn bộ bộ đánh giá thực nghiệm (Scale $N=2..100$, mất gói $p_{loss}=0\%..20\%$, biểu đồ so sánh):
+PDF/Word trong `docs/` đã sẵn sàng để đọc. Chỉ cần các công cụ sau khi muốn chỉnh nội dung và xuất lại:
 
 ```bash
-/home/linh/miniconda3/bin/python scripts/evaluate_baseline.py
-# Biên dịch lại báo cáo Word:
-/home/linh/miniconda3/bin/python tools/build_report.py
+.venv/bin/python -m pip install -r requirements-report.txt
+# Ubuntu: sudo apt install pandoc libreoffice-writer python3-uno
+.venv/bin/python -I scripts/plot_results.py
+.venv/bin/python -I scripts/draw_diagrams.py
+.venv/bin/python -I tools/build_report.py
+SOFFICE=/usr/bin/soffice /usr/bin/python3 tools/export_pdf.py
 ```
 
-**Giới hạn hiện tại:** Demo PX4 chưa nối trực tiếp MAVLink bridge đàn đa drone (chạy demo độc lập 1 drone SITL); chưa dùng Linux tc netem trên giao diện vật lý ngoài localhost.
+Cần font Times New Roman có bản quyền trên máy xuất để giữ nguyên bố cục. `/usr/bin/python3` dùng cầu nối UNO của LibreOffice. Bộ sinh tài liệu đọc số liệu có sẵn, không tự chạy PX4.
+
+## Phạm vi đã hoàn thành
+
+- GCS/agent C, nạp một điểm mốc cho mỗi drone, đồng bộ bốn timestamp, multicast trigger, heartbeat và failsafe mô phỏng.
+- Baseline streaming 10 Hz; khung thực nghiệm quy mô 2–100 agent và các điều kiện mạng giả lập.
+- Demo bay một PX4 SITL riêng, ảnh UI và log chuyến bay.
+
+Chưa có cầu nối MAVLink từ agent C tới PX4, visualizer 100 drone, tích hợp trình phát spline nhiều điểm vào agent mạng, tránh va chạm hoặc xác thực mật mã. Callback failsafe tạo cấu trúc lệnh mô phỏng và log, chưa truyền lệnh bay thật. Không diễn giải 100 agent localhost là 100 mô phỏng động lực học PX4.
+
+## Mô-đun spline và sinh đội hình
+
+`src/common/spline.*` nội suy Cubic Hermite 3D, khớp vị trí và vận tốc tại hai đầu đoạn. `tools/pattern_generator.py` sinh đội hình ngôi sao → xoắn ốc, kiểm tra tốc độ, geofence và khoảng cách lấy mẫu trước khi ghi tệp. Mô-đun này có test riêng trong `make test`, chưa nối vào vòng phát quỹ đạo của GCS/agent.
+
+```bash
+python3 -I tools/pattern_generator.py --drones 20 --output show_waypoints.bin --json show_waypoints.json
+```
+
+Định dạng đầu ra là chuỗi khung DLSP type `0x0A`, khác tệp `SHOW` một điểm mốc của `generate_show.py`; chưa thể truyền tệp này vào `gcs_server --show`.

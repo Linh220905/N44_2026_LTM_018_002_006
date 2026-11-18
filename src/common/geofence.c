@@ -1,5 +1,6 @@
 #include "geofence.h"
 #include <stddef.h>
+#include <math.h>
 
 void geofence_box_init(geofence_box_t *box,
                        double min_x, double max_x,
@@ -17,7 +18,11 @@ void geofence_box_init(geofence_box_t *box,
 
 bool geofence_is_breached(const geofence_box_t *box, double x, double y, double z) {
     // Nếu không cấu hình Geofence (NULL), coi là vi phạm an toàn để dừng khẩn cấp
-    if (box == NULL) {
+    if (box == NULL || !isfinite(x) || !isfinite(y) || !isfinite(z) ||
+        !isfinite(box->min_x) || !isfinite(box->max_x) ||
+        !isfinite(box->min_y) || !isfinite(box->max_y) ||
+        !isfinite(box->min_z) || !isfinite(box->max_z) ||
+        box->min_x > box->max_x || box->min_y > box->max_y || box->min_z > box->max_z) {
         return true;
     }
 

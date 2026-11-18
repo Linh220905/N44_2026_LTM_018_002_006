@@ -1,0 +1,24 @@
+$ make test
+./bin/test_protocol
+protocol tests passed
+./bin/test_failsafe
+  DRONE LIGHT SHOW - FAILSAFE & GEOFENCE TEST SUITE
+[RUN ] Test Case 1: Heartbeat Timeout (> 1.5s)...
+[PASS] Test Case 1 passed: FAILSAFE_HEARTBEAT_TIMEOUT triggered, MAVLink AUTO_HOVER sent.
+[RUN ] Test Case 2: Geofence Breach (Vượt ngưỡng +/- 50m)...
+[PASS] Test Case 2 passed: FAILSAFE_GEOFENCE_BREACH triggered, MAVLink MAV_CMD_NAV_LAND sent.
+[RUN ] Test Case 3: Battery Low (< 10%)...
+[PASS] Test Case 3 passed: FAILSAFE_BATTERY_LOW triggered, MAVLink MAV_CMD_NAV_LAND sent.
+[RUN ] Test Case 4: Manual Emergency Stop...
+[PASS] Test Case 4 passed: Manual Emergency Kill confirmed.
+  ALL 4 TEST CASES COMPLETED SUCCESSFULLY! [OK]
+python3 -I tests/test_swarm.py
+swarm integration passed
+python3 -I tests/test_baseline.py
+Baseline integration test passed successfully!
+/home/linh/px4-venv/bin/python -I tests/test_sitl_flight.py
+PX4 SITL verified. Offboard setpoints 10 Hz; QGroundControl shows live position.
+LAND requested. Keep QGroundControl open until disarmed.
+OK
+/home/linh/px4-venv/bin/python -I tests/test_mavlink_measure.py
+MAVLink measurement test passed
