@@ -32,3 +32,14 @@ __pycache__/
 *.ulg
 *.log
 /evidence/results_quick.json
+
+
+/tools/build_report.py
+/tools/report_kit.py
+/tools/export_pdf.py
+/tools/build_study_guide.py
+/scripts/capture_live_flight.py
+/scripts/make_hinh10_composite.py
+/scripts/render_evidence.py
+/scripts/measure_mavlink.py
+/tests/test_mavlink_measure.py
