@@ -113,20 +113,6 @@ Từ thư mục dự án, với Python đã cài `requirements.txt`:
 
 Lệnh đầu chỉ xem trước. Lệnh có `--execute-sitl` xác minh tiến trình PX4 cục bộ và heartbeat, gửi OFFBOARD/ARM, bay 4 điểm mốc rồi gửi LAND. Giữ QGroundControl mở để xác nhận đã hạ cánh/disarm. Không dùng cho thiết bị thật. Không chuyển console PX4 vào file log vì có thể làm đầy ổ đĩa.
 
-## Sinh lại báo cáo
-
-PDF/Word trong `docs/` đã sẵn sàng để đọc. Chỉ cần các công cụ sau khi muốn chỉnh nội dung và xuất lại:
-
-```bash
-.venv/bin/python -m pip install -r requirements-report.txt
-# Ubuntu: sudo apt install pandoc libreoffice-writer python3-uno
-.venv/bin/python -I scripts/plot_results.py
-.venv/bin/python -I scripts/draw_diagrams.py
-.venv/bin/python -I tools/build_report.py
-SOFFICE=/usr/bin/soffice /usr/bin/python3 tools/export_pdf.py
-```
-
-Cần font Times New Roman có bản quyền trên máy xuất để giữ nguyên bố cục. `/usr/bin/python3` dùng cầu nối UNO của LibreOffice. Bộ sinh tài liệu đọc số liệu có sẵn, không tự chạy PX4.
 
 ## Phạm vi đã hoàn thành
 
